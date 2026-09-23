@@ -22,12 +22,14 @@ const char *oplunaTitleAt(int index, int *mode);
 int oplunaIdentityAt(int index, opluna_identity_t *identity);
 int oplunaFindIdentity(const opluna_identity_t *identity);
 int oplunaActivateGame(int index, int options);
+int oplunaSelectNativeGame(int index);
 int oplunaSquarePathAt(int index, char *path, size_t capacity);
 void oplunaCollectionInit(void);
 void oplunaCollectionPrepare(void);
 int oplunaCollectionReady(void);
 void oplunaCollectionRender(int width, int height);
 void oplunaCollectionHandleInput(void);
+void oplunaCollectionSelectFromNative(item_list_t *support, int itemId);
 void oplunaCollectionEnd(void);
 
 #endif

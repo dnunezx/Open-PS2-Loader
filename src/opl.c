@@ -351,7 +351,7 @@ static void itemExecTriangle(struct menu_item *curMenu)
  Copyright 2026, dnunezx
  Licensed under the Academic Free License version 3.0.
  */
-int oplunaActivateGame(int index, int options)
+static menu_item_t *oplunaFocusNativeGame(int index)
 {
     opluna_identity_t identity;
     opl_io_module_t *module;
@@ -360,43 +360,55 @@ int oplunaActivateGame(int index, int options)
     const char *title, *startup;
 
     if (oplunaIdentityAt(index, &identity) < 0 || identity.mode < 0 || identity.mode >= MODE_COUNT)
-        goto stale;
+        return NULL;
     module = &list_support[identity.mode];
     support = module->support;
     if (support == NULL || !support->enabled || !module->menuItem.visible ||
         support->itemGetCount == NULL || support->itemGetName == NULL ||
         support->itemGetStartup == NULL || identity.itemId >= support->itemGetCount(support))
-        goto stale;
+        return NULL;
 
     title = support->itemGetName(support, identity.itemId);
     startup = support->itemGetStartup(support, identity.itemId);
     if (title == NULL || startup == NULL ||
         strcmp(title, identity.title) != 0 || strcmp(startup, identity.startup) != 0)
-        goto stale;
+        return NULL;
 
     for (entry = module->subMenu; entry != NULL; entry = entry->next) {
         if (entry->item.id == identity.itemId)
             break;
     }
     if (entry == NULL)
-        goto stale;
+        return NULL;
 
     module->menuItem.current = entry;
     module->menuItem.pagestart = entry;
     menuSetSelectedItem(&module->menuItem);
+    return &module->menuItem;
+}
+
+int oplunaSelectNativeGame(int index)
+{
+    return oplunaFocusNativeGame(index) != NULL ? 0 : -1;
+}
+
+int oplunaActivateGame(int index, int options)
+{
+    menu_item_t *menu = oplunaFocusNativeGame(index);
+    if (menu == NULL) {
+        guiMsgBox("This game changed. Please wait for Collection to refresh.", 0, NULL);
+        return -1;
+    }
+
     oplunaActionSource = 1;
     if (options)
-        itemExecTriangle(&module->menuItem);
+        itemExecTriangle(menu);
     else {
         oplunaCollectionEnd();
-        itemExecSelect(&module->menuItem);
+        itemExecSelect(menu);
     }
     oplunaActionSource = 0;
     return 0;
-
-stale:
-    guiMsgBox("This game changed. Please wait for Collection to refresh.", 0, NULL);
-    return -1;
 }
 #endif
 

@@ -17,6 +17,9 @@
 #include "include/system.h"
 #include "include/ioman.h"
 #include "include/sound.h"
+#ifdef OPLUNA_UI
+#include "include/opluna.h"
+#endif
 #include <assert.h>
 
 enum MENU_IDs {
@@ -970,6 +973,10 @@ void menuHandleInputMain()
 {
 #ifdef OPLUNA_UI
     if (getKeyOn(KEY_L3)) {
+        if (selected_item != NULL && selected_item->item != NULL &&
+            selected_item->item->current != NULL)
+            oplunaCollectionSelectFromNative(selected_item->item->userdata,
+                                             selected_item->item->current->item.id);
         guiSwitchScreen(GUI_SCREEN_OPLUNA);
         return;
     }

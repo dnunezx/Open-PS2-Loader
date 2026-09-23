@@ -145,6 +145,35 @@ static void syncGeneration(void)
     }
 }
 
+void oplunaCollectionSelectFromNative(item_list_t *support, int itemId)
+{
+    opluna_identity_t identity;
+    const char *title, *startup;
+    int index;
+
+    if (support == NULL || itemId < 0 || support->itemGetCount == NULL ||
+        support->itemGetName == NULL || support->itemGetStartup == NULL ||
+        itemId >= support->itemGetCount(support))
+        return;
+    title = support->itemGetName(support, itemId);
+    startup = support->itemGetStartup(support, itemId);
+    if (title == NULL || startup == NULL)
+        return;
+    identity.mode = support->mode;
+    identity.itemId = itemId;
+    snprintf(identity.title, sizeof(identity.title), "%s", title);
+    snprintf(identity.startup, sizeof(identity.startup), "%s", startup);
+    index = oplunaFindIdentity(&identity);
+    if (index < 0)
+        return;
+    if (index != selectedIndex) {
+        oplunaCollectionEnd();
+        selectedIndex = index;
+    }
+    selectedIdentity = identity;
+    selectedIdentityValid = 1;
+}
+
 static int wrapIndex(int index, int count)
 {
     if (count <= 0)
@@ -521,6 +550,8 @@ void oplunaCollectionHandleInput(void)
     syncGeneration();
     count = oplunaCount();
     if (getKeyOn(KEY_L3) || getKeyOn(gSelectButton == KEY_CIRCLE ? KEY_CROSS : KEY_CIRCLE)) {
+        if (count > 0)
+            oplunaSelectNativeGame(selectedIndex);
         guiSwitchScreen(GUI_SCREEN_MAIN);
     } else if (count > 0 && getKeyOn(gSelectButton)) {
         oplunaActivateGame(selectedIndex, 0);
