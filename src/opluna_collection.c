@@ -37,8 +37,11 @@ typedef struct
 } collection_thumb_t;
 
 static collection_thumb_t thumbnails[COLLECTION_THUMB_COUNT];
-static GSTEXTURE focalCover;
-static GSTEXTURE outgoingCover;
+/* gsKit tracks textures by address, so move the slot pointers rather than
+   copying a texture after it has been bound for drawing. */
+static GSTEXTURE coverSlots[2];
+static GSTEXTURE *focalCover = &coverSlots[0];
+static GSTEXTURE *outgoingCover = &coverSlots[1];
 static int focalIndex = -1;
 static int outgoingIndex = -1;
 static int selectedIndex;
@@ -116,8 +119,8 @@ void oplunaCollectionEnd(void)
         releaseTexture(&artJob.texture);
         artJob.state = 0;
     }
-    releaseTexture(&focalCover);
-    releaseTexture(&outgoingCover);
+    releaseTexture(focalCover);
+    releaseTexture(outgoingCover);
     for (i = 0; i < COLLECTION_THUMB_COUNT; i++) {
         releaseTexture(&thumbnails[i].texture);
         thumbnails[i].index = -1;
@@ -301,6 +304,23 @@ static collection_thumb_t *reserveThumbnail(int index)
     return thumb;
 }
 
+static int thumbnailStillNeeded(int index)
+{
+    int count = oplunaCount();
+    int i;
+    if (count < 1)
+        return 0;
+    if (index == selectedIndex && focalCover->Mem == NULL)
+        return 1;
+    for (i = 0; i < (focalCover->Mem == NULL ? COLLECTION_VISIBLE_THUMB_COUNT :
+                     (int)(sizeof(thumbnailPriority) / sizeof(thumbnailPriority[0]))); i++) {
+        if (index == wrapIndex(selectedIndex + thumbnailPriority[i], count) &&
+            (index != outgoingIndex || outgoingCover->Mem == NULL))
+            return 1;
+    }
+    return 0;
+}
+
 static void acceptArtwork(void)
 {
     collection_thumb_t *thumb;
@@ -308,10 +328,11 @@ static void acceptArtwork(void)
         return;
     if (artJob.generation == seenGeneration && artJob.epoch == viewEpoch) {
         if (artJob.result >= 0 && artJob.kind == COLLECTION_ART_FOCAL && artJob.index == focalIndex) {
-            releaseTexture(&focalCover);
-            focalCover = artJob.texture;
+            releaseTexture(focalCover);
+            *focalCover = artJob.texture;
             memset(&artJob.texture, 0, sizeof(artJob.texture));
         } else if (artJob.kind == COLLECTION_ART_THUMB &&
+                   thumbnailStillNeeded(artJob.index) &&
                    (thumb = reserveThumbnail(artJob.index)) != NULL) {
             if (artJob.result >= 0) {
                 thumb->texture = artJob.texture;
@@ -329,8 +350,8 @@ static int syncFocalCover(void)
     if (focalIndex == selectedIndex)
         return 0;
     previousIndex = focalIndex;
-    if (selectedIndex == outgoingIndex && outgoingCover.Mem != NULL) {
-        GSTEXTURE previousFocal = focalCover;
+    if (selectedIndex == outgoingIndex && outgoingCover->Mem != NULL) {
+        GSTEXTURE *previousFocal = focalCover;
         focalCover = outgoingCover;
         outgoingCover = previousFocal;
         outgoingIndex = previousIndex;
@@ -338,9 +359,12 @@ static int syncFocalCover(void)
         focalAttempted = 1;
         return 1;
     }
-    releaseTexture(&outgoingCover);
-    outgoingCover = focalCover;
-    memset(&focalCover, 0, sizeof(focalCover));
+    releaseTexture(outgoingCover);
+    {
+        GSTEXTURE *previousFocal = focalCover;
+        focalCover = outgoingCover;
+        outgoingCover = previousFocal;
+    }
     outgoingIndex = previousIndex;
     focalIndex = selectedIndex;
     focalAttempted = 0;
@@ -349,7 +373,7 @@ static int syncFocalCover(void)
 
 static void requestFocalCover(void)
 {
-    if (oplunaCount() > 0 && !focalAttempted && artJob.state == 0) {
+    if (oplunaCount() > 0 && !focalAttempted && artJob.state == 0 && currentFlowOffset() == 0) {
         if (queueArtwork(selectedIndex, COLLECTION_ART_FOCAL) != 0)
             focalAttempted = 1;
     }
@@ -361,10 +385,20 @@ static void loadNearbyThumbnail(void)
     int i;
     if (count < 2)
         return;
-    for (i = 0; i < (int)(sizeof(thumbnailPriority) / sizeof(thumbnailPriority[0])); i++) {
+    if (focalCover->Mem == NULL && findThumbnail(selectedIndex) == NULL) {
+        int result = queueArtwork(selectedIndex, COLLECTION_ART_THUMB);
+        if (result < 0)
+            reserveThumbnail(selectedIndex);
+        if (result >= 0)
+            return;
+    }
+    for (i = 0; i < (focalCover->Mem == NULL ? COLLECTION_VISIBLE_THUMB_COUNT :
+                     (int)(sizeof(thumbnailPriority) / sizeof(thumbnailPriority[0]))); i++) {
         int index = wrapIndex(selectedIndex + thumbnailPriority[i], count);
         int result;
-        if (index == selectedIndex || index == outgoingIndex || findThumbnail(index) != NULL)
+        if (index == selectedIndex ||
+            (index == outgoingIndex && outgoingCover->Mem != NULL) ||
+            findThumbnail(index) != NULL)
             continue;
         result = queueArtwork(index, COLLECTION_ART_THUMB);
         if (result < 0) {
@@ -381,7 +415,7 @@ void oplunaCollectionPrepare(void)
     acceptArtwork();
     syncFocalCover();
     requestFocalCover();
-    if (artJob.state == 0 && focalAttempted)
+    if (artJob.state == 0)
         loadNearbyThumbnail();
 }
 
@@ -404,10 +438,10 @@ int oplunaCollectionReady(void)
 static GSTEXTURE *textureFor(int index)
 {
     collection_thumb_t *thumb;
-    if (index == selectedIndex && focalCover.Mem != NULL)
-        return &focalCover;
-    if (index == outgoingIndex && outgoingCover.Mem != NULL)
-        return &outgoingCover;
+    if (index == selectedIndex && focalCover->Mem != NULL)
+        return focalCover;
+    if (index == outgoingIndex && outgoingCover->Mem != NULL)
+        return outgoingCover;
     thumb = findThumbnail(index);
     return thumb != NULL && thumb->texture.Mem != NULL ? &thumb->texture : NULL;
 }
