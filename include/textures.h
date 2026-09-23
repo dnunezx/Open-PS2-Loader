@@ -31,12 +31,14 @@ enum INTERNAL_TEXTURE {
     SQUARE_ICON,
     SELECT_ICON,
     START_ICON,
+#ifdef OPLUNA_UI
+    L3_ICON,
+#endif
     /* currently unused.
     UP_ICON,
     DOWN_ICON,
     L1_ICON,
     L2_ICON,
-    L3_ICON,
     R1_ICON,
     R2_ICON,
     R3_ICON, */

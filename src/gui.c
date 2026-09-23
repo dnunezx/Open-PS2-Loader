@@ -22,6 +22,9 @@
 #include "include/cheatman.h"
 #include "include/sound.h"
 #include "include/guigame.h"
+#ifdef OPLUNA_UI
+#include "include/opluna.h"
+#endif
 
 #include <limits.h>
 #include <stdlib.h>
@@ -83,11 +86,27 @@ typedef struct
     short inMenu;
 } gui_screen_handler_t;
 
+#ifdef OPLUNA_UI
+static void oplunaRenderScreen(void)
+{
+    oplunaCollectionRender(screenWidth, screenHeight);
+}
+
+static void oplunaHandleInput(void)
+{
+    oplunaCollectionHandleInput();
+}
+#endif
+
 static gui_screen_handler_t screenHandlers[] = {{&menuHandleInputMain, &menuRenderMain, 0},
                                                 {&menuHandleInputMenu, &menuRenderMenu, 1},
                                                 {&menuHandleInputInfo, &menuRenderInfo, 1},
                                                 {&menuHandleInputGameMenu, &menuRenderGameMenu, 1},
-                                                {&menuHandleInputAppMenu, &menuRenderAppMenu, 1}};
+                                                {&menuHandleInputAppMenu, &menuRenderAppMenu, 1},
+#ifdef OPLUNA_UI
+                                                {&oplunaHandleInput, &oplunaRenderScreen, 0},
+#endif
+};
 
 // default screen handler (menu screen)
 static gui_screen_handler_t *screenHandler = &screenHandlers[GUI_SCREEN_MENU];
@@ -163,6 +182,10 @@ void guiInit(void)
 
 void guiEnd()
 {
+#ifdef OPLUNA_UI
+    oplunaCollectionEnd();
+    oplunaEnd();
+#endif
     if (gBackgroundTex.Mem)
         free(gBackgroundTex.Mem);
 
@@ -1053,6 +1076,12 @@ static void guiHandleOp(struct gui_update_t *item)
             menuAddHint(item->menu.menu, item->hint.text_id, item->hint.icon_id);
             break;
 
+#ifdef OPLUNA_UI
+        case GUI_OP_OPLUNA_PUBLISH:
+            oplunaApplySource(item->oplunaSource);
+            break;
+#endif
+
         default:
             LOG("GUI: ??? (%d)\n", item->type);
     }
@@ -1080,8 +1109,15 @@ static void guiHandleDeferredOps(void)
 
 void guiExecDeferredOps(void)
 {
-    // Clears deferred operations list by executing them.
+#ifdef OPLUNA_UI
+    // The I/O worker can call this outside the frame loop. Keep published
+    // library snapshots and menu items alive until the current frame ends.
+    guiLock();
+#endif
     guiHandleDeferredOps();
+#ifdef OPLUNA_UI
+    guiUnlock();
+#endif
 }
 
 static void guiDrawBusy(int alpha)
@@ -1340,7 +1376,7 @@ int guiAlignMenuHints(menu_hint_item_t *hint, int font, int width)
 
     for (; hint; hint = hint->next) {
         GSTEXTURE *iconTex = thmGetTexture(hint->icon_id);
-        w = (iconTex->Width * 20) / iconTex->Height;
+        w = iconTex && iconTex->Height ? (iconTex->Width * 20) / iconTex->Height : 0;
         char *text = _l(hint->text_id);
 
         x -= rmWideScale(w) + 2;
@@ -1362,7 +1398,7 @@ int guiAlignSubMenuHints(int hintCount, int *textID, int *iconID, int font, int 
 
     for (i = 0; i < hintCount; i++) {
         GSTEXTURE *iconTex = thmGetTexture(iconID[i]);
-        w = (iconTex->Width * 20) / iconTex->Height;
+        w = iconTex && iconTex->Height ? (iconTex->Width * 20) / iconTex->Height : 0;
         char *text = _l(textID[i]);
 
         x -= rmWideScale(w) + 2;
@@ -1488,6 +1524,17 @@ static void guiShow()
     if (screenHandlerTarget) {
         u8 alpha;
         const u8 transition_frames = 26;
+#ifdef OPLUNA_UI
+        if (screenHandlerTarget == &screenHandlers[GUI_SCREEN_OPLUNA]) {
+            // Load the visible jackets while the native screen fades out.
+            // Keep the midpoint black until the whole stack can fade in.
+            oplunaCollectionPrepare();
+            if (transIndex == transition_frames / 2 && !oplunaCollectionReady()) {
+                rmDrawRect(0, 0, screenWidth, screenHeight, GS_SETREG_RGBA(0x00, 0x00, 0x00, 0x80));
+                return;
+            }
+        }
+#endif
         if (transIndex < (transition_frames / 2)) {
             // Fade-out old screen
             // index: 0..7
@@ -1498,6 +1545,12 @@ static void guiShow()
             // Fade-in new screen
             // index: 8..15
             // alpha: 8..1 * transition_step
+#ifdef OPLUNA_UI
+            // Keep Collection artwork visible through its fade-out. Release it
+            // only after the screen has reached full black.
+            if (transIndex == transition_frames / 2 && screenHandler == &screenHandlers[GUI_SCREEN_OPLUNA])
+                oplunaCollectionEnd();
+#endif
             screenHandlerTarget->renderScreen();
             alpha = fade((float)(transition_frames - transIndex) / (transition_frames / 2)) * 0x80;
         }

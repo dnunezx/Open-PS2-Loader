@@ -74,6 +74,18 @@ static submenu_list_t *gameMenuCurrent;
 
 static submenu_list_t *appMenu;
 static submenu_list_t *appMenuCurrent;
+#ifdef OPLUNA_UI
+static int gameMenuReturnScreen = GUI_SCREEN_MAIN;
+
+void menuSetGameMenuReturnScreen(int screen)
+{
+    gameMenuReturnScreen = screen;
+}
+
+#define GAME_MENU_RETURN_SCREEN gameMenuReturnScreen
+#else
+#define GAME_MENU_RETURN_SCREEN GUI_SCREEN_MAIN
+#endif
 
 static s32 menuSemaId;
 static s32 menuListSemaId = -1;
@@ -98,7 +110,7 @@ static void menuRenameGame(submenu_list_t **submenu)
                 char newName[nameLength];
                 strncpy(newName, selected_item->item->current->item.text, nameLength);
                 if (guiShowKeyboard(newName, nameLength)) {
-                    guiSwitchScreen(GUI_SCREEN_MAIN);
+                    guiSwitchScreen(GAME_MENU_RETURN_SCREEN);
                     submenuDestroy(submenu);
 
                     // Only rename the file if the name changed; trying to rename a file with a file name that hasn't changed can cause the file
@@ -128,7 +140,7 @@ static void menuDeleteGame(submenu_list_t **submenu)
         if (support->itemDelete) {
             if (menuCheckParentalLock() == 0) {
                 if (guiMsgBox(_l(_STR_DELETE_WARNING), 1, NULL)) {
-                    guiSwitchScreen(GUI_SCREEN_MAIN);
+                    guiSwitchScreen(GAME_MENU_RETURN_SCREEN);
                     submenuDestroy(submenu);
                     support->itemDelete(support, selected_item->item->current->item.id);
                     ioPutRequest(IO_MENU_UPDATE_DEFFERED, &support->mode);
@@ -956,6 +968,12 @@ void menuRenderMain(void)
 
 void menuHandleInputMain()
 {
+#ifdef OPLUNA_UI
+    if (getKeyOn(KEY_L3)) {
+        guiSwitchScreen(GUI_SCREEN_OPLUNA);
+        return;
+    }
+#endif
     if (getKey(KEY_LEFT)) {
         menuPrevH();
     } else if (getKey(KEY_RIGHT)) {
@@ -1048,7 +1066,7 @@ void menuRenderGameMenu()
     // If the device menu that has the selected game suddenly goes invisible (device was removed), switch
     // back to the game list menu.
     if (selected_item->item->visible == 0) {
-        guiSwitchScreen(GUI_SCREEN_MAIN);
+        guiSwitchScreen(GAME_MENU_RETURN_SCREEN);
         return;
     }
 
@@ -1166,7 +1184,7 @@ void menuHandleInputGameMenu()
     }
 
     if (getKeyOn(KEY_START) || getKeyOn(gSelectButton == KEY_CIRCLE ? KEY_CROSS : KEY_CIRCLE)) {
-        guiSwitchScreen(GUI_SCREEN_MAIN);
+        guiSwitchScreen(GAME_MENU_RETURN_SCREEN);
     }
 }
 
@@ -1249,6 +1267,6 @@ void menuHandleInputAppMenu()
     }
 
     if (getKeyOn(KEY_START) || getKeyOn(gSelectButton == KEY_CIRCLE ? KEY_CROSS : KEY_CIRCLE)) {
-        guiSwitchScreen(GUI_SCREEN_MAIN);
+        guiSwitchScreen(GAME_MENU_RETURN_SCREEN);
     }
 }

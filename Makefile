@@ -42,6 +42,9 @@ DTL_T10000 ?= 0
 #Nor stripping neither compressing binary ELF after compiling.
 NOT_PACKED ?= 0
 
+# Include Collection in this fork; pass OPLUNA_UI=0 for a native-only build.
+OPLUNA_UI ?= 1
+
 # ======== END OF CONFIGURABLE SECTION. DO NOT MODIFY VARIABLES AFTER THIS POINT!! ========
 DEBUG ?= 0
 EESIO_DEBUG ?= 0
@@ -75,6 +78,11 @@ FRONTEND_OBJS = pad.o xparam.o fntsys.o renderman.o menusys.o OSDHistory.o syste
 		dia.o ioman.o texcache.o themes.o supportbase.o bdmsupport.o ethsupport.o hddsupport.o zso.o lz4.o \
 		appsupport.o gui.o guigame.o vmc_groups.o textures.o opl.o atlas.o nbns.o httpclient.o gsm.o cheatman.o sound.o ps2cnf.o
 
+ifeq ($(OPLUNA_UI),1)
+  FRONTEND_OBJS += opluna.o opluna_collection.o
+  EE_CFLAGS += -DOPLUNA_UI
+endif
+
 IOP_OBJS =	iomanx.o filexio.o ps2fs.o usbd.o bdmevent.o \
 		bdm.o bdmfs_fatfs.o usbmass_bd.o iLinkman.o IEEE1394_bd.o mx4sio_bd.o \
 		ps2atad.o hdpro_atad.o poweroff.o ps2hdd.o xhdd.o genvmc.o lwnbdsvr.o \
@@ -100,6 +108,10 @@ PNG_ASSETS = load0 load1 load2 load3 load4 load5 load6 load7 usb usb_bd ilk_bd \
 	Scan_1080i Scan_1080i2 Scan_1080p Vmode_multi Vmode_ntsc Vmode_pal logo case apps_case\
 	Index_0 Index_1 Index_2 Index_3 Index_4
 	# unused icons - up down l1 l2 l3 r1 r2 r3
+
+ifeq ($(OPLUNA_UI),1)
+  PNG_ASSETS += L3
+endif
 
 GFX_OBJS = $(PNG_ASSETS:%=%_png.o) poeveticanew.o icon_sys.o icon_icn.o
 

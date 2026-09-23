@@ -114,6 +114,9 @@ void menuHandleInputAppMenu();
 
 // Sets the selected item if it is found in the menu list
 void menuSetSelectedItem(menu_item_t *item);
+#ifdef OPLUNA_UI
+void menuSetGameMenuReturnScreen(int screen);
+#endif
 
 void menuAddHint(menu_item_t *menu, int text_id, int icon_id);
 void menuRemoveHints(menu_item_t *menu);
