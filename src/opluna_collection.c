@@ -23,6 +23,7 @@
 #define COLLECTION_GLIDE_FRAMES 25
 #define COLLECTION_ART_FOCAL 1
 #define COLLECTION_ART_THUMB 2
+#define COLLECTION_ART_NEIGHBOR 3
 
 static const int thumbnailPriority[] = {1, -1, 2, 3, 4, 5, 6, -2};
 #define COLLECTION_VISIBLE_THUMB_COUNT 7
@@ -39,9 +40,12 @@ typedef struct
 static collection_thumb_t thumbnails[COLLECTION_THUMB_COUNT];
 /* gsKit tracks textures by address, so move the slot pointers rather than
    copying a texture after it has been bound for drawing. */
-static GSTEXTURE coverSlots[2];
+static GSTEXTURE coverSlots[4];
 static GSTEXTURE *focalCover = &coverSlots[0];
 static GSTEXTURE *outgoingCover = &coverSlots[1];
+static GSTEXTURE *neighborCover[2] = {&coverSlots[2], &coverSlots[3]};
+static int neighborIndex[2] = {-1, -1};
+static int neighborAttempted[2];
 static int focalIndex = -1;
 static int outgoingIndex = -1;
 static int selectedIndex;
@@ -50,6 +54,7 @@ static int selectedIdentityValid;
 static unsigned int seenGeneration;
 static int flowStartOffset;
 static int flowStartFrame;
+static int browseDirection = 1;
 static int focalAttempted;
 static unsigned int viewEpoch;
 
@@ -121,6 +126,11 @@ void oplunaCollectionEnd(void)
     }
     releaseTexture(focalCover);
     releaseTexture(outgoingCover);
+    for (i = 0; i < 2; i++) {
+        releaseTexture(neighborCover[i]);
+        neighborIndex[i] = -1;
+        neighborAttempted[i] = 0;
+    }
     for (i = 0; i < COLLECTION_THUMB_COUNT; i++) {
         releaseTexture(&thumbnails[i].texture);
         thumbnails[i].index = -1;
@@ -130,6 +140,7 @@ void oplunaCollectionEnd(void)
     focalAttempted = 0;
     outgoingIndex = -1;
     flowStartOffset = 0;
+    browseDirection = 1;
 }
 
 static void syncGeneration(void)
@@ -208,6 +219,7 @@ static void moveSelection(int direction)
     if (offset < -3000)
         offset = -3000;
     selectedIndex = wrapIndex(selectedIndex + direction, count);
+    browseDirection = direction;
     selectedIdentityValid = oplunaIdentityAt(selectedIndex, &selectedIdentity) == 0;
     flowStartOffset = offset;
     flowStartFrame = guiFrameId;
@@ -324,6 +336,7 @@ static int thumbnailStillNeeded(int index)
 static void acceptArtwork(void)
 {
     collection_thumb_t *thumb;
+    int i;
     if (artJob.state != 2)
         return;
     if (artJob.generation == seenGeneration && artJob.epoch == viewEpoch) {
@@ -331,6 +344,20 @@ static void acceptArtwork(void)
             releaseTexture(focalCover);
             *focalCover = artJob.texture;
             memset(&artJob.texture, 0, sizeof(artJob.texture));
+        } else if (artJob.result >= 0 && artJob.kind == COLLECTION_ART_NEIGHBOR) {
+            if (artJob.index == focalIndex && focalCover->Mem == NULL) {
+                *focalCover = artJob.texture;
+                focalAttempted = 1;
+                memset(&artJob.texture, 0, sizeof(artJob.texture));
+            } else {
+                for (i = 0; i < 2; i++) {
+                    if (neighborIndex[i] == artJob.index && neighborCover[i]->Mem == NULL) {
+                        *neighborCover[i] = artJob.texture;
+                        memset(&artJob.texture, 0, sizeof(artJob.texture));
+                        break;
+                    }
+                }
+            }
         } else if (artJob.kind == COLLECTION_ART_THUMB &&
                    thumbnailStillNeeded(artJob.index) &&
                    (thumb = reserveThumbnail(artJob.index)) != NULL) {
@@ -346,7 +373,7 @@ static void acceptArtwork(void)
 
 static int syncFocalCover(void)
 {
-    int previousIndex;
+    int previousIndex, i;
     if (focalIndex == selectedIndex)
         return 0;
     previousIndex = focalIndex;
@@ -358,6 +385,22 @@ static int syncFocalCover(void)
         focalIndex = selectedIndex;
         focalAttempted = 1;
         return 1;
+    }
+    for (i = 0; i < 2; i++) {
+        if (selectedIndex == neighborIndex[i] && neighborCover[i]->Mem != NULL) {
+            GSTEXTURE *emptyCover;
+            releaseTexture(outgoingCover);
+            emptyCover = outgoingCover;
+            outgoingCover = focalCover;
+            focalCover = neighborCover[i];
+            neighborCover[i] = emptyCover;
+            neighborIndex[i] = -1;
+            neighborAttempted[i] = 0;
+            outgoingIndex = previousIndex;
+            focalIndex = selectedIndex;
+            focalAttempted = 1;
+            return 1;
+        }
     }
     releaseTexture(outgoingCover);
     {
@@ -376,6 +419,40 @@ static void requestFocalCover(void)
     if (oplunaCount() > 0 && !focalAttempted && artJob.state == 0 && currentFlowOffset() == 0) {
         if (queueArtwork(selectedIndex, COLLECTION_ART_FOCAL) != 0)
             focalAttempted = 1;
+    }
+}
+
+static void requestNeighborCovers(void)
+{
+    int count = oplunaCount();
+    int flow = currentFlowOffset();
+    int i;
+    if (count < 2 || focalCover->Mem == NULL || artJob.state != 0)
+        return;
+    for (i = 0; i < 2; i++) {
+        int index = wrapIndex(selectedIndex + (i == 0 ? 1 : -1), count);
+        int result;
+        if (flow != 0 && i != (browseDirection > 0 ? 0 : 1))
+            continue;
+        if ((i == 1 && index == neighborIndex[0]) ||
+            (index == outgoingIndex && outgoingCover->Mem != NULL)) {
+            releaseTexture(neighborCover[i]);
+            neighborIndex[i] = -1;
+            neighborAttempted[i] = 0;
+            continue;
+        }
+        if (neighborIndex[i] != index) {
+            releaseTexture(neighborCover[i]);
+            neighborIndex[i] = index;
+            neighborAttempted[i] = 0;
+        }
+        if (neighborAttempted[i])
+            continue;
+        result = queueArtwork(index, COLLECTION_ART_NEIGHBOR);
+        if (result != 0)
+            neighborAttempted[i] = 1;
+        if (result > 0)
+            return;
     }
 }
 
@@ -415,6 +492,7 @@ void oplunaCollectionPrepare(void)
     acceptArtwork();
     syncFocalCover();
     requestFocalCover();
+    requestNeighborCovers();
     if (artJob.state == 0)
         loadNearbyThumbnail();
 }
