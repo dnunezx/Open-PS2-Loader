@@ -56,14 +56,14 @@ extern char g_ipconfig[IPCONFIG_MAX_LEN];
 extern int g_ipconfig_len;
 extern u32 g_compat_mask;
 
-#define COMPAT_MODE_1 0x01
-#define COMPAT_MODE_2 0x02
-#define COMPAT_MODE_3 0x04
-#define COMPAT_MODE_4 0x08
-#define COMPAT_MODE_5 0x10
-#define COMPAT_MODE_6 0x20
-#define COMPAT_MODE_7 0x40
-#define COMPAT_MODE_8 0x80
+#define COMPAT_MODE_1        0x01
+#define COMPAT_MODE_2        0x02
+#define COMPAT_MODE_3        0x04
+#define COMPAT_MODE_4        0x08
+#define COMPAT_MODE_5        0x10
+#define COMPAT_MODE_6        0x20
+#define COMPAT_MODE_7        0x40
+#define COMPAT_MODE_8        0x80
 #define COMPAT_LUNA_IOP_POFF 0x80000000u
 
 enum GAME_MODE {
