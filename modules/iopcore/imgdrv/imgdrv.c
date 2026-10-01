@@ -8,7 +8,9 @@ IRX_ID(MODNAME, 1, 1);
 
 unsigned int ioprpimg = 0xDEC1DEC1;
 int ioprpsiz = 0xDEC2DEC2;
-const char name[] = "host";
+// LUNA's HostFS runtime uses host:, so keep OPL's in-memory IOPRP device
+// separate from emulator and homebrew HostFS handlers.
+const char name[] = "opli";
 
 int dummy_fs()
 {
