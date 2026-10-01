@@ -129,6 +129,8 @@ void DeviceLock(void)
 void DeviceUnmount(void)
 {
     DPRINTF("%s\n", __func__);
+    if (g_bd != NULL && g_bd->flush != NULL)
+        g_bd->flush(g_bd);
 }
 
 int DeviceReadSectors(u64 lsn, void *buffer, unsigned int sectors)

@@ -311,24 +311,19 @@ static int IGR_Intc_Handler(int cause)
 
     ee_kmode_enter();
 
-    // Check power button press
-    if ((*CDVD_R_NDIN & 0x20) && (*CDVD_R_POFF & 0x04)) {
-        // Increment button press counter
-        Power_Button.press++;
-
-        // Cancel poweroff to catch the second button press
-        *CDVD_R_SDIN = 0x00;
-        *CDVD_R_SCMD = 0x1B;
-    }
-
-    // Start VBlank counter when power button is pressed
-    if (Power_Button.press) {
-        // Check number of power button press after 1 ~ sec
-        if (Power_Button.vb_count++ >= 50) {
+    // LUNA delegates the physical button to CDVDMAN's IOP shutdown thread.
+    // Keep the original EE handling for OPL launches that do not set this bit.
+    if (!(g_compat_mask & COMPAT_LUNA_IOP_POFF)) {
+        if ((*CDVD_R_NDIN & 0x20) && (*CDVD_R_POFF & 0x04)) {
+            Power_Button.press++;
+            *CDVD_R_SDIN = 0x00;
+            *CDVD_R_SCMD = 0x1B;
+        }
+        if (Power_Button.press && Power_Button.vb_count++ >= 50) {
             if (Power_Button.press == 1)
-                Pad_Data.combo_type = IGR_COMBO_R3_L3; // power button press 1 time, so poweroff
+                Pad_Data.combo_type = IGR_COMBO_R3_L3;
             else
-                Pad_Data.combo_type = IGR_COMBO_START_SELECT; // power button press 2 time, so reset
+                Pad_Data.combo_type = IGR_COMBO_START_SELECT;
         }
     }
 

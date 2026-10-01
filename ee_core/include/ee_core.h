@@ -64,6 +64,7 @@ extern u32 g_compat_mask;
 #define COMPAT_MODE_6 0x20
 #define COMPAT_MODE_7 0x40
 #define COMPAT_MODE_8 0x80
+#define COMPAT_LUNA_IOP_POFF 0x80000000u
 
 enum GAME_MODE {
     BDM_ILK_MODE,
