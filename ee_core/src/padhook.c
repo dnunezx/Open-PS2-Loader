@@ -235,7 +235,11 @@ static void IGR_Thread(void *arg)
 
         // Restore physical MMCE boot cards after reset, before the browser or
         // launcher can read mcX:. No game SIO2 drivers survive this reset.
-        LoadMemModule(0, mmceigr_irx, size_mmceigr_irx, sizeof("11"), "11");
+        if (config->_CompatMask & COMPAT_LUNA_MMCE_MASK) {
+            char slots[] = {(config->_CompatMask & COMPAT_LUNA_MMCE_SLOT0) ? '1' : '0',
+                            (config->_CompatMask & COMPAT_LUNA_MMCE_SLOT1) ? '1' : '0', '\0'};
+            LoadMemModule(0, mmceigr_irx, size_mmceigr_irx, sizeof(slots), slots);
+        }
 
 #ifdef IGS
         if ((Pad_Data.combo_type == IGR_COMBO_UP) && (config->EnableGSMOp))
