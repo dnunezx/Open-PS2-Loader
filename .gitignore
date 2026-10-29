@@ -41,6 +41,7 @@ DETAILED_CHANGELOG
 pc/iso2usbld/bin/iso2usbld
 IOPRP_img.c
 asm/*.c
+/ee_core/obj/
 
 #
 # 3rd party

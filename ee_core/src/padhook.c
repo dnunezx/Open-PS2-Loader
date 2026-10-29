@@ -57,6 +57,8 @@ static u8 IGR_Stack[IGR_STACK_SIZE] __attribute__((aligned(16)));
 /* Extern symbol */
 extern void *_gp;
 extern void *_end;
+extern unsigned char mmceigr_irx[];
+extern unsigned int size_mmceigr_irx;
 
 // Load home ELF
 static void t_loadElf(void)
@@ -230,6 +232,10 @@ static void IGR_Thread(void *arg)
 
         // Reset SPU - do it after the IOP reboot, so nothing will compete with the EE for it.
         LoadOPLModule(OPL_MODULE_ID_RESETSPU, 0, 0, NULL);
+
+        // Restore physical MMCE boot cards after reset, before the browser or
+        // launcher can read mcX:. No game SIO2 drivers survive this reset.
+        LoadMemModule(0, mmceigr_irx, size_mmceigr_irx, sizeof("11"), "11");
 
 #ifdef IGS
         if ((Pad_Data.combo_type == IGR_COMBO_UP) && (config->EnableGSMOp))
