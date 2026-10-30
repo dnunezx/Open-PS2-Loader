@@ -18,7 +18,7 @@ IGSCORE_EE_OBJS = igs_api.o
 CHEATCORE_EE_OBJS = cheat_engine.o cheat_api.o
 
 EE_OBJS = main.o syshook.o iopmgr.o modmgr.o util.o patches.o patches_asm.o \
-	  padhook.o cd_igr_rpc.o tlb.o asm.o crt0.o $(GSMCORE_EE_OBJS) $(CHEATCORE_EE_OBJS)
+	  padhook.o cd_igr_rpc.o tlb.o asm.o crt0.o mmceigr_irx.o $(GSMCORE_EE_OBJS) $(CHEATCORE_EE_OBJS)
 MAPFILE = ee_core.map
 
 EE_INCS := -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include -I$(PS2SDK)/ports/include -Iinclude -I.
@@ -76,6 +76,13 @@ $(EE_BIN) : $(EE_OBJS)
 	$(EE_CC) $(EE_CFLAGS) $(EE_LDFLAGS) -o $(EE_BIN) $(EE_OBJS) $(EE_LIBS)
 
 all: $(EE_BIN)
+
+$(EE_OBJS_DIR)mmceigr_irx.c: $(PS2SDK)/iop/irx/mmceigr.irx
+	@mkdir -p $(EE_OBJS_DIR)
+	$(PS2SDK)/bin/bin2c $< $@ mmceigr_irx
+
+$(EE_OBJS_DIR)mmceigr_irx.o: $(EE_OBJS_DIR)mmceigr_irx.c
+	$(EE_CC) $(EE_CFLAGS) -c $< -o $@
 
 clean:
 	rm -f -r $(EE_OBJS_DIR) $(EE_BIN) $(MAPFILE)
